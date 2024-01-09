@@ -1,25 +1,27 @@
 use esp32_nimble::{uuid128, BLEDevice, NimbleProperties};
+use esp_idf_hal::gpio;
+use esp_idf_hal::gpio::{InterruptType, PinDriver, Pull};
 use esp_idf_hal::peripherals::Peripherals;
+use esp_idf_hal::task::block_on;
 use esp_idf_hal::uart::*;
 use esp_idf_hal::units::Hertz;
-use esp_idf_hal::{delay::*, gpio};
 use esp_idf_sys as _;
 
 fn main() {
+  block_on(main_async());
+}
+
+async fn main_async() {
   esp_idf_sys::link_patches();
   esp_idf_svc::log::EspLogger::initialize_default();
 
   let peripherals = Peripherals::take().unwrap();
   let config = config::Config::new().baudrate(Hertz(115_200));
-  let uart = UartDriver::new(
-    peripherals.uart0,
-    peripherals.pins.gpio1,
-    peripherals.pins.gpio3,
-    Option::<gpio::Gpio0>::None,
-    Option::<gpio::Gpio1>::None,
-    &config,
-  )
-  .unwrap();
+  let mut led = PinDriver::input_output(peripherals.pins.gpio8).unwrap();
+  let mut button = PinDriver::input(peripherals.pins.gpio9).unwrap();
+  button.set_pull(Pull::Down).unwrap();
+  button.set_interrupt_type(InterruptType::PosEdge).unwrap();
+  button.enable_interrupt().unwrap();
 
   let ble_device = BLEDevice::take();
 
@@ -72,22 +74,21 @@ fn main() {
     .add_service_uuid(uuid128!("fafafafa-fafa-fafa-fafa-fafafafafafa"));
 
   ble_advertising.start().unwrap();
+  led.set_low().unwrap();
 
-  let mut buf = [0_u8; 10];
   let mut initialized = true;
   loop {
-    esp_idf_hal::delay::FreeRtos::delay_ms(1000);
-    let len = uart.read(&mut buf, NON_BLOCK).unwrap();
-    if (buf[..len]).contains(&b's') {
-      if initialized {
-        ::log::info!("stop BLE");
-        BLEDevice::deinit();
-      } else {
-        ::log::info!("start BLE");
-        BLEDevice::init();
-        ble_advertising.start().unwrap();
-      }
-      initialized = !initialized;
+    button.wait_for_rising_edge().await.unwrap();
+    if initialized {
+      ::log::info!("stop BLE");
+      BLEDevice::deinit();
+      led.set_high().unwrap();
+    } else {
+      ::log::info!("start BLE");
+      BLEDevice::init();
+      ble_advertising.start().unwrap();
+      led.set_low().unwrap();
     }
+    initialized = !initialized;
   }
 }
