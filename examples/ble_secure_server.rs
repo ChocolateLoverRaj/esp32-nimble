@@ -18,7 +18,6 @@ fn main() {
 
   let (advertise_tx, advertise_rx) = channel::<()>();
 
-  println!("HI");
   server.on_connect(move |server, desc| {
     ::log::info!("Client connected: {:?}", desc);
     server
@@ -49,7 +48,12 @@ fn main() {
   );
   secure_characteristic
     .lock()
-    .set_value("secure_characteristic".as_bytes());
+    // .set_value("secure_characteristic".as_bytes())
+    .on_read(|_a, _b| {
+      println!("Starting advertising after read");
+      device.get_advertising().start().unwrap();
+      println!("Started advertising after read");
+    });
 
   let ble_advertising = device.get_advertising();
   ble_advertising
