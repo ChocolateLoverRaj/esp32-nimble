@@ -15,6 +15,15 @@ fn main() {
   let server = device.get_server();
   server.on_connect(|_server, desc| {
     ::log::info!("Client connected: {:?}", desc);
+
+    server
+      .update_conn_params(desc.conn_handle(), 24, 48, 0, 60)
+      .unwrap();
+
+    if server.connected_count() < (esp_idf_sys::CONFIG_BT_NIMBLE_MAX_CONNECTIONS as _) {
+      ::log::info!("Multi-connect support: start advertising");
+      device.get_advertising().start().unwrap();
+    }
   });
   server.on_disconnect(|_desc, reason| {
     ::log::info!("Client disconnected ({:?})", BLEReturnCode(reason as _));
