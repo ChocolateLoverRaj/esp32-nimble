@@ -1,3 +1,5 @@
+use std::sync::mpsc::channel;
+
 use esp32_nimble::{enums::*, utilities::BleUuid, BLEDevice, BLEReturnCode, NimbleProperties};
 use esp_idf_sys as _;
 
@@ -13,8 +15,20 @@ fn main() {
     .set_io_cap(SecurityIOCap::DisplayOnly);
 
   let server = device.get_server();
-  server.on_connect(|_server, desc| {
+
+  let (advertise_tx, advertise_rx) = channel::<()>();
+
+  println!("HI");
+  server.on_connect(move |server, desc| {
     ::log::info!("Client connected: {:?}", desc);
+    server
+      .update_conn_params(desc.conn_handle(), 24, 48, 0, 60)
+      .unwrap();
+
+    if server.connected_count() < (esp_idf_sys::CONFIG_BT_NIMBLE_MAX_CONNECTIONS as _) {
+      ::log::info!("Multi-connect support: start advertising");
+      advertise_tx.send(()).unwrap();
+    }
   });
   server.on_disconnect(|_desc, reason| {
     ::log::info!("Client disconnected ({:?})", BLEReturnCode(reason as _));
@@ -47,6 +61,7 @@ fn main() {
   ::log::info!("bonded_addresses: {:?}", device.bonded_addresses().unwrap());
 
   loop {
-    esp_idf_hal::delay::FreeRtos::delay_ms(1000);
+    advertise_rx.recv().unwrap();
+    device.get_advertising().start().unwrap();
   }
 }
