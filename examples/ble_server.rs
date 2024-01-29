@@ -56,6 +56,12 @@ fn main() {
     })
     .on_write(move |args| {
       ::log::info!("Wrote to writable characteristic: {:?}", args.recv_data);
+      let name = String::from_utf8(args.recv_data.to_vec())
+        .unwrap()
+        .trim()
+        .to_owned();
+      println!("Changing name to: {:#?}", name);
+      BLEDevice::set_device_name(&name).unwrap();
     });
 
   let ble_advertising = ble_device.get_advertising();
