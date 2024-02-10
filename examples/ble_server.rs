@@ -65,7 +65,7 @@ fn main() {
 
   ble_advertising
     .lock()
-    .name("ESP32-GATT-Server")
+    .name("123456789")
     .add_service_uuid(uuid128!("fafafafa-fafa-fafa-fafa-fafafafafafa"))
     .start()
     .unwrap();
